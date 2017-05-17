@@ -37,25 +37,16 @@ allocproc(void)
   struct proc *p;
   char *sp;
 
-  //acquire process table lock
-  acquire(&ptable.lock);
-
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
-
-  release(&ptable.lock);
   return 0;
 
 
 found:
   p->state = EMBRYO;
-  //p->tickets=INITIAL_TICKETS;
-//  p->rounds=0;
   p->pid = nextpid++;
 
-
-  release(&ptable.lock); //releases the proc. table lock
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
