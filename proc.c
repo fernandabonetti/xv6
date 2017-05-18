@@ -37,17 +37,19 @@ allocproc(void)
   struct proc *p;
   char *sp;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
-      goto found;
-  return 0;
+   acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      if(p->state == UNUSED)
+        goto found;
+
+    release(&ptable.lock);
+    return 0;
 
 
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
-
+  release(&ptable.lock);
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     p->state = UNUSED;
@@ -80,8 +82,7 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  //changes in the process table -> acquire
-  acquire(&ptable.lock);
+
   p = allocproc();
   initproc = p;
 
@@ -106,6 +107,7 @@ userinit(void)
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
 
+  acquire(&ptable.lock);
   p->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -140,7 +142,6 @@ fork(int numtickets)  //fork receives the number of tickets of the process
   int i, pid;
   struct proc *np;
 
-  acquire(&ptable.lock);
   // Allocate process.
   if((np = allocproc()) == 0){
     release(&ptable.lock);
@@ -152,7 +153,7 @@ fork(int numtickets)  //fork receives the number of tickets of the process
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
-    release(&ptable.lock);
+    //release(&ptable.lock);
     return -1;
   }
   np->sz = proc->sz;
@@ -294,6 +295,7 @@ int lotteryTotal(void){
   struct proc *p;
   int total_tickets=0;
   //Looping in the process table
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state==RUNNABLE){
       total_tickets+=p->tickets;
@@ -325,7 +327,7 @@ scheduler(void)
 
     //if there's no available tickets, there's no winner
     total_tickets=lotteryTotal();
-    if(total_tickets){
+    if(total_tickets > 0){
       //Finds the winner by LCG random
       chosen=lcg_rand(lcg_rand(runval * ticks)); //the clock ticks
 
@@ -340,16 +342,15 @@ scheduler(void)
         if(p->state == RUNNABLE){
           //
           chosen-=p->tickets;
-        }else if(chosen >= 0) //it goes acumulating until it reaches the winner
+        }if(p->state !=RUNNABLE || chosen >= 0){
             continue;
-
+        }
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
         proc = p;
         switchuvm(p);
         p->state = RUNNING;
-        p->rounds++; //it will count the running cicles
         swtch(&cpu->scheduler, p->context);
         switchkvm();
 
