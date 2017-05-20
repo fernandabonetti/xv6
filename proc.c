@@ -45,7 +45,6 @@ allocproc(void)
     release(&ptable.lock);
     return 0;
 
-
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
@@ -81,7 +80,6 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-
 
   p = allocproc();
   initproc = p;
@@ -165,9 +163,9 @@ fork(int numtickets)  //fork receives the number of tickets of the process
 
   if(numtickets != 0){
     if(numtickets > MAX_TICKETS)
-      np->tickets = MAX_TICKETS;
+      np->tickets = MAX_TICKETS; //process receives the maximum
     else
-      np->tickets = numtickets;
+      np->tickets = numtickets; //or the given number
   }
   np->tickets=INITIAL_TICKETS;
 
@@ -295,7 +293,6 @@ int lotteryTotal(void){
   struct proc *p;
   int total_tickets=0;
   //Looping in the process table
-
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state==RUNNABLE){
       total_tickets+=p->tickets;
@@ -327,20 +324,16 @@ scheduler(void)
 
     //if there's no available tickets, there's no winner
     total_tickets=lotteryTotal();
+
     if(total_tickets > 0){
       //Finds the winner by LCG random
-      chosen=lcg_rand(lcg_rand(runval * ticks)); //the clock ticks
-
+      chosen=lcg_rand(lcg_rand(runval * ticks));
       if(total_tickets < chosen){
-        //Chosen is in the interval of tickets
-        chosen %= total_tickets;
+        chosen %= total_tickets;  //Chosen is in the interval of tickets
       }
-
       // Loop over process table looking for process to run
-
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         if(p->state == RUNNABLE){
-          //
           chosen-=p->tickets;
         }if(p->state !=RUNNABLE || chosen >= 0){
             continue;
@@ -353,7 +346,6 @@ scheduler(void)
         p->state = RUNNING;
         swtch(&cpu->scheduler, p->context);
         switchkvm();
-
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         proc = 0;
