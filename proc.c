@@ -81,8 +81,10 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
+
   p = allocproc();
   initproc = p;
+
 
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -96,7 +98,7 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-  p->tickets = INITIAL_TICKETS; //initcode also needs tickets
+  p->tickets = MAX_TICKETS; //initcode also needs tickets
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -151,23 +153,31 @@ fork(int numtickets)  //fork receives the number of tickets of the process
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
-    //release(&ptable.lock);
     return -1;
   }
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
 
-
   //before it returns, we have to set the tickets to EVERY process
 
   if(numtickets != 0){
-    if(numtickets > MAX_TICKETS)
-      np->tickets = MAX_TICKETS; //process receives the maximum
-    else
-      np->tickets = numtickets; //or the given number
-  }
-  np->tickets=INITIAL_TICKETS;
+    if(numtickets > MAX_TICKETS) np->tickets = MAX_TICKETS; //process receives the maximum
+  np->tickets = numtickets; //or the given number
+}else np->tickets=INITIAL_TICKETS;
+
+/*
+if (tickets == 0) {
+		np->tickets = DEFAULT_TICKETS; //define o padrão de tickets para 16
+	} else if (tickets < 0) {
+		np->tickets = MIN_TICKETS;     //define o mínimo de tickets para 8
+	} else if (tickets > MAX_TICKETS){
+		np->tickets = MAX_TICKETS;      //define o máximo de tickets para 128
+	} else {
+		np->tickets = tickets;          // a função passou uma quantidade aceitavel
+	}
+
+*/
 
 
   // Clear %eax so that fork returns 0 in the child.
@@ -181,6 +191,8 @@ fork(int numtickets)  //fork receives the number of tickets of the process
   safestrcpy(np->name, proc->name, sizeof(proc->name));
 
   pid = np->pid;
+
+  cprintf("PROCESS CREATED - PID: %d TICKETS: %d\n", np->pid, np->tickets);
 
   acquire(&ptable.lock);
 
@@ -209,6 +221,7 @@ exit(void)
       fileclose(proc->ofile[fd]);
       proc->ofile[fd] = 0;
     }
+
   }
 
   begin_op();
@@ -253,6 +266,7 @@ wait(void)
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
+        cprintf("PROCESS IS GONE - PID: %d\n", p->pid);
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
@@ -292,7 +306,7 @@ lcg_rand(unsigned long a)
 int lotteryTotal(void){
   struct proc *p;
   int total_tickets=0;
-  //Looping in the process table
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state==RUNNABLE){
       total_tickets+=p->tickets;
@@ -314,8 +328,8 @@ void
 scheduler(void)
 {
   struct proc *p;
-  int chosen, total_tickets, runval=0;
-
+  int total_tickets, runval=0;
+  int chosen;
   for(;;){
     runval++;
     // Enable interrupts on this processor.
@@ -335,12 +349,14 @@ scheduler(void)
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         if(p->state == RUNNABLE){
           chosen-=p->tickets;
-        }if(p->state !=RUNNABLE || chosen >= 0){
+        }
+        if(p->state !=RUNNABLE || chosen >= 0){
             continue;
         }
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
+        cprintf("PROCESS %d IS WITH THE CPU NOW.\n", p->pid);
         proc = p;
         switchuvm(p);
         p->state = RUNNING;
