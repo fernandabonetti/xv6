@@ -163,22 +163,9 @@ fork(int numtickets)  //fork receives the number of tickets of the process
 
   if(numtickets != 0){
     if(numtickets > MAX_TICKETS) np->tickets = MAX_TICKETS; //process receives the maximum
-  np->tickets = numtickets; //or the given number
-}else np->tickets=INITIAL_TICKETS;
-
-/*
-if (tickets == 0) {
-		np->tickets = DEFAULT_TICKETS; //define o padrão de tickets para 16
-	} else if (tickets < 0) {
-		np->tickets = MIN_TICKETS;     //define o mínimo de tickets para 8
-	} else if (tickets > MAX_TICKETS){
-		np->tickets = MAX_TICKETS;      //define o máximo de tickets para 128
-	} else {
-		np->tickets = tickets;          // a função passou uma quantidade aceitavel
-	}
-
-*/
-
+    np->tickets = numtickets; //or the given number
+  }
+  np->tickets=INITIAL_TICKETS;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
